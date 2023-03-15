@@ -1,0 +1,198 @@
+---
+title: "MA331-Coursework"
+subtitle: "Text analytics of the TED talks by LOUIE SCHWARTZBERG and ELON MUSK"
+author: "2111321-Oluwasola-Mustapha"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+### Don't delete this setup code chunk from your file
+knitr::opts_chunk$set(echo = FALSE)   ## DON'T ALTER THIS: this is to prevent printing the code in your "html" file.
+
+#Loading all the required packages for this analysis
+library(dsEssex)
+library(tidyverse)
+library(tidytext)
+library(tidyverse)
+library(ggrepel)
+library(ggplot2)
+
+#Loading and Viewing my speakers TED TALK Data
+#===============================================
+data('ted_talks') 
+
+#Taking a glimpse of the data
+#===============================================
+glimpse(ted_talks)
+
+#Filtering out my assigned speakers talks for analysis
+my_assignedtalks = ted_talks %>% filter(speaker %in% c('Louie Schwartzberg', 'Elon Musk'))
+```
+
+# Introduction
+
+In this Report I will be doing a presentation, comparison and sentiment analysis of the most frequently used words of Two Speakers at the "TED TALKS".The first speaker being Louie Schwartzberg (Talks about "The Hidden Beauty of Pollination" which was delivered in the year 2011 and "Hidden Miracles of The Natural World" delivered in the year 2014) while the second speaker being Elon Musk (Talks about " The future we're building --and boring" a talk interview delivered in the year 2017 and also "The Mind Behind Tesla, SpaceX, SolarCity..." another talk interview which was delivered in the year 2013). I will be making use of individual plots and comparative graphs to show the similiarities and differences between both speakers most commonly used words as well as using the 'nrc' sentiment analysis package to determine the emotions and sentiments.
+
+# Methods
+
+For this report i will be showing Individual Plots (Graphs) of the most commonly used words for the speakers and also compare both speakers in a graphical representation. The methods include:
+
+1. Tokenization
+2. Removal of Stop Words
+3. Top Words Identification and Visualization for Individual Speakers
+4. Comparision and Visualization of Top Words for Both Speakers
+5. Sentiment Analysis
+
+### Tokenization
+
+The process of breaking down sentences into singular texts is known as *Tokenization*. I have done the process of breaking down every sentences into single words per row
+```{r, echo=FALSE}
+#Breaking down into individual tokens
+#====================================
+tidy_talks = my_assignedtalks %>% unnest_tokens(word, text) 
+```
+
+### Removal of Stop Words
+
+Stop words are basically words such as "of", "the", "to", "is" which are not necessarily useful in text analysis. I further added words such as "ca", "em", "applause", "yeah" and "laughter" which appeared the most in Elon Musk talks and they are simply the initials of the Host and Speaker names as well as gestures from the audience. The (anti_join) function helps us to get rid of all of these stopwords. 
+```{r, echo=FALSE, message=FALSE}
+#show stopwords/common english words
+#===================================
+gen_stopwords = stop_words 
+#adding the host and speakers names initials to the stopwords
+#===================================
+my_stopwords = gen_stopwords %>% add_row(word= c('ca', 'em', 'yeah', 'applause', 'laughter'))
+#removing stopwords from talks
+tidy_talks %>% anti_join(my_stopwords)  
+```
+### Identifying the top words for Both Speakers
+
+After the removal of the Stopwords, we can now identify and display the top 25 words used by both speakers
+```{r, echo=FALSE, message=FALSE}
+
+#show the top 25 words that are not stopwords in an ordered form
+#====================================
+tidy_talks_nonstop = tidy_talks %>% anti_join(my_stopwords)
+tidy_counts= tidy_talks_nonstop %>% count(word, sort = TRUE)
+talk_topwords= tidy_counts %>% slice_max(n, n=25) %>% mutate(word= reorder(word,n))
+```
+
+## Visualizing the Top Words
+
+We can now go ahead to now visualize the top 15 words used by both speakers in the following plots below
+
+### Louie's Top Words
+```{r, echo=FALSE, message=FALSE, out.height="400px"}
+# Louie's most used words
+#=========================
+Louie_words <- tidy_talks_nonstop %>%
+  filter(speaker == "Louie Schwartzberg") %>% 
+  count(speaker, word, sort = TRUE)
+#Plot of Louie's most used words
+#==========================
+Louie_words %>%
+  slice_max(n, n = 15) %>%
+  mutate(word = reorder(word, n)) %>%
+  ggplot(aes(n, word)) + geom_bar(stat="identity", fill = "pink") + coord_flip() +
+  theme(axis.text.x = element_text(angle = 90))
+```
+
+### Elon's Top Words
+```{r, echo=FALSE, message=FALSE, out.height="400px"}
+# Elon's most used words
+#=========================
+Elon_words <- tidy_talks_nonstop %>%
+  filter(speaker == "Elon Musk") %>% 
+  count(speaker, word, sort = TRUE)
+#Plot of Elon's most used words
+#==========================
+Elon_words %>%
+  slice_max(n, n = 15) %>%
+  mutate(word = reorder(word, n)) %>%
+  ggplot(aes(n, word)) + geom_bar(stat="identity", fill = "blue") + coord_flip() +
+  theme(axis.text.x = element_text(angle = 90))
+```
+
+### A Comparision of both Speakers Top words
+
+```{r, echo=FALSE, message=FALSE,error=FALSE, warning=FALSE}
+#Combining and comparing both speakers most used words graphically
+#=====================================
+bind_rows(Elon_words, Louie_words) %>%
+  group_by(word) %>%
+  filter(sum(n) > 5) %>%
+  ungroup() %>%
+  pivot_wider(names_from = "speaker", values_from = "n", values_fill = 0) %>%
+  ggplot(aes(`Elon Musk`, `Louie Schwartzberg`)) +
+  geom_abline(color = "red", size = 1.2, alpha = 0.75, lty = 2) +
+  geom_text_repel(aes(label = word), max.overlaps = 20)
+```
+
+## Sentiments Analysis
+
+First we try to assign the **nrc** sentiments to our speakers words in *tidy_talks_nonstop* by using the *inner_join* function. Then we present the sentiments per speaker and show the counts in a wide format where each sentiments count are shown in individual speaker columns.
+```{r,echo=FALSE,message=FALSE}
+# Assigning sentiments to the words
+#=================================
+tidy_talks_nonstop %>%
+  inner_join(get_sentiments("nrc"), by = "word")
+# Extending to wider format, displaying by speakers
+#=================================
+speaker_sent = tidy_talks_nonstop %>%
+  inner_join(get_sentiments("nrc"), by = "word") %>%
+  count(speaker, sentiment) %>%
+  pivot_wider(names_from = speaker, values_from = n, values_fill = 0)
+```
+
+Now we calculate the Odds ratios and the log Odd ratios of the sentiments for both speakers and add it to our sentiments table then a Function to compute confidence interval for log(OR) and Display Plots of Sentiments against Speaker
+```{r, echo=FALSE, message=FALSE}
+
+sent_count = tidy_talks_nonstop %>%
+  inner_join(get_sentiments("nrc"), by = "word") %>%
+  count(speaker, sentiment) %>%
+  pivot_wider(names_from = speaker, values_from = n, values_fill = 0) %>%
+  mutate(OR = compute_OR(speaker_sent$`Elon Musk`, speaker_sent$`Louie Schwartzberg`, correction = FALSE), log_OR = log(OR), sentiment = reorder(sentiment, log_OR)) %>% arrange(desc(OR))
+```
+
+```{r, echo=FALSE, message=FALSE,out.height="350px"}
+#We define a function to calculate the Confidence Interval of the Log_OR
+log_OR_ConfInt = function(log_OR, numerator, denominator, sig = 0.05, upper = TRUE){
+   SE = sqrt(1/numerator + 1/(sum(numerator) - numerator) + 1/denominator + 1/(sum(denominator) - denominator))
+   if(upper){
+     return(log_OR + qnorm(sig/2) * SE)
+   } else {
+     return(log_OR - qnorm(sig/2) * SE)
+   }
+}
+
+sent_count %>%
+  mutate(log_OR = log(OR), CI.lower = log_OR_ConfInt(log_OR, `Elon Musk`, `Louie Schwartzberg`, upper = FALSE), CI.upper = log_OR_ConfInt(log_OR, `Elon Musk`, `Louie Schwartzberg`)) %>%
+  arrange(log_OR)
+
+sent_count %>%
+  mutate(log_OR = log(OR), CI.lower = log_OR_ConfInt(log_OR, `Elon Musk`, `Louie Schwartzberg`, upper = FALSE), CI.upper = log_OR_ConfInt(log_OR, `Elon Musk`, `Louie Schwartzberg`)) %>%
+  mutate(sentiment = reorder(sentiment, log_OR)) %>%
+  ggplot(aes(sentiment, log_OR)) +
+  geom_point() +
+  geom_errorbar(aes(ymin = CI.lower, ymax = CI.upper)) +
+  geom_hline(yintercept=0, linetype="dashed", color="darkgreen", size=1) +
+  ylab("Log odds ratio") + ggtitle("The association between sentiments and speakers")
+```
+
+We further go ahead to visualize the sentiments against the Log of the Odds Ratio below:
+```{r, echo=FALSE, message=FALSE, out.height="350px"}
+speaker_sent %>% 
+  mutate(OR = compute_OR(`Louie Schwartzberg`,`Elon Musk`, correction = FALSE), log_OR = log(OR), sentiment =reorder(sentiment, log_OR)) %>%
+  ggplot(aes(sentiment, log_OR, fill =log_OR < 0)) + 
+  geom_col(show.legend = FALSE) +
+  scale_fill_brewer(palette = "Set2") + 
+  theme(title = element_text(color = "Blue")) + 
+  theme(axis.text.x = element_text(angle = 90)) +
+  ylab("Log odds ratio") + 
+  xlab("Sentiments") + 
+  coord_flip()
+```
+  
+# Discussion
+
+The sentiments analysis shows us that there were more spoken words and more sentiments from the Elon Musk talk than the Louie Schwartzberg talk. This is evidently seen from the talks where Elon Musk is clearly interviewed about the various Projects that he has(is) worked(working) on and this results in so many spoken words whereas Louie Schwartzberg on the other hand gives very short presentations in his talks mostly comprised of Visuals(images and videos) which results in very little spoken words. From both talks, *anticipation*, *positive*, *trust* and *joy* are seen to be highest recurring sentiments for Elon Musk. One of the limitations encountered is based on the fact that Louie's talks was more of visuals displayed than spoken words. It was also challenging with Visualizing the comparision of both speakers top words because there was very little spoken words in Louie's talk. It will be more advisable to do an analysis of similar context like interviews versus interviews to enable a better context in comparisons and conclusions after analysis.
